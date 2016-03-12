@@ -612,4 +612,4 @@ function random_slave(username): { password: string; user: string } {
 }
 
 
-exports = couchAccess
+export = couchAccess
