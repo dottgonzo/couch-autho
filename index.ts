@@ -1,7 +1,7 @@
 import * as Promise from "bluebird";
 import * as _ from "lodash";
 
-import couchjsonconf = require("couchjsonconf");
+import couchJsonConf from "couchjsonconf";
 
 let uid = require("uid");
 let rpj = require("request-promise-json");
@@ -476,13 +476,20 @@ function sharemach(internal_couchdb, app_id, user, label, friend) { // create or
 
 
 
+interface IClassConf {
+    hostname: string;
+    protocol?: string;
+    port?: number;
+    db?: string;
+    user: string;
+    password: string;
+}
 
 
 
+class couchAccess extends couchJsonConf {
 
-class couchAccess extends couchjsonconf {
-
-    constructor(rootaccessdb) {
+    constructor(rootaccessdb:IClassConf) {
         super(rootaccessdb)
 
         rpj.get(this.my('_users/org.couchdb.user:' + this.user)).then(function() {
@@ -612,4 +619,4 @@ function random_slave(username): { password: string; user: string } {
 }
 
 
-export = couchAccess
+export default couchAccess
