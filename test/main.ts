@@ -64,10 +64,10 @@ before(function (done) {
 });
 
 // write tests about multiple values (2 ip or 2 gateway for the same interface)
-describe("test user", function () {
+describe("test app_main", function () {
     this.timeout(20000);
 
-    it("verificate app_main db", function (done) {
+    it("verificate presence of app_main db", function (done) {
         //    console.log(CouchAuth.my('app_main'))
 
         rpj.get(CouchAuth.my('app_main')).then(function (d) {
@@ -78,10 +78,8 @@ describe("test user", function () {
         })
     });
 
-    it("verificate that app_main is private", function (done) {
+    it("verificate that app_main db is private", function (done) {
         //    console.log(CouchAuth.my('app_main'))
-
-
         rpj.get(CouchAuth.publink + '/app_main').then(function (d) {
             done(Error(d));
         }).catch((err) => {
@@ -92,6 +90,41 @@ describe("test user", function () {
     });
 
 
+});
+describe("main admins", function () {
+    it("create a main admin (for test only)", function (done) {
+    })
+    it("create an app", function (done) {
+    })
+})
+
+describe("users", function () {
+    it("user registration", function (done) {
+    })
+    it("user subscribe an app", function (done) {
+    })
+    it("user login", function (done) {
+    })
+    it("create a machine for an app subscribed", function (done) {
+    })
+    it("can't create a machine for an app that not subscribed yet", function (done) {
+    })
+    it("share a machine that own", function (done) {
+    })
+    it("can't share a machine that not own", function (done) {
+    })
+    it("change a user role for a machine that own", function (done) {
+    })
+    it("can't change  a user role for a machine that not own", function (done) {
+    })
+    it("delete a machine that own", function (done) {
+    })
+    it("can't delete a machine that not own", function (done) {
+    })
+    it("garant a privilege", function (done) {
+    })
+    it("revoke a privilege", function (done) {
+    })
 });
 
 after(function (done) {
