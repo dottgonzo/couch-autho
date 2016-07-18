@@ -344,7 +344,7 @@ function createapp(internal_couchdb, app_id) {
     return new Promise<boolean>(function (resolve, reject) {
 
         rpj.put(internal_couchdb.my('app_' + app_id)).then(function () {
-            rpj.put(internal_couchdb.my('/app_' + app_id + '/_design/auth'), {
+            rpj.put(internal_couchdb.my('app_' + app_id + '/_design/auth'), {
                 "language": "javascript",
                 "validate_doc_update": "function(n,o,u){if(n._id&&!n._id.indexOf(\"_local/\"))return;if(!u||!u.roles||u.roles.indexOf(\"app_" + app_id + "\")==-1){throw({forbidden:'Denied.'})}}"
             }).then(function () {
@@ -497,15 +497,7 @@ class couchAccess extends couchJsonConf {
         rpj.get(that.my('app_main')).then(function () {
             return true
         }).catch(function (err) {
-
-            rpj.put(that.my('app_main')).then(function () {
-                return true
-            }).catch(function (err) {
-
-                throw Error('can\'t create main app');
-
-            })
-
+            createapp(that, 'main')
         })
 
 

@@ -71,8 +71,17 @@ describe("test app_main", function () {
         //    console.log(CouchAuth.my('app_main'))
 
         rpj.get(CouchAuth.my('app_main')).then(function (d) {
-            expect(d.db_name).to.be.eq('app_main');
-            done();
+
+            rpj.put(CouchAuth.my('app_main') + '/testdoctobepresent0', { _id: 'testdoctobepresent0', ee: true }).then(function (d) {
+                expect(d).to.be.ok;
+                expect(d.db_name).to.be.eq('app_main');
+                done();
+            }).catch((err) => {
+                console.log(err)
+                done(Error(err));
+            })
+
+
         }).catch((err) => {
             done(Error(err));
         })
@@ -80,50 +89,73 @@ describe("test app_main", function () {
 
     it("verificate that app_main db is private", function (done) {
         //    console.log(CouchAuth.my('app_main'))
-        rpj.get(CouchAuth.publink + '/app_main').then(function (d) {
+        rpj.put(CouchAuth.publink + '/app_main/testdocnotbepresent0', { _id: 'testdocnotbepresent0', ee: true }).then(function (d) {
             done(Error(d));
         }).catch((err) => {
-            console.log(err)
             expect(err).to.be.ok;
-            done()
+            rpj.get(CouchAuth.publink + '/app_main/testdoctobepresent0').then(function (d) {
+                done(Error(d));
+            }).catch((err) => {
+                expect(err).to.be.ok;
+                done()
+            })
         })
+
     });
 
 
 });
 describe("main admins", function () {
-    it("create a main admin (for test only)", function (done) {
+    it("create a main admin (for test only) if not exists", function (done) {
+
+        done()
+
+
     })
     it("create an app", function (done) {
+        done();
     })
 })
 
 describe("users", function () {
     it("user registration", function (done) {
+        done();
     })
     it("user subscribe an app", function (done) {
+        done();
     })
     it("user login", function (done) {
+        done();
     })
     it("create a machine for an app subscribed", function (done) {
+        done();
     })
     it("can't create a machine for an app that not subscribed yet", function (done) {
+        done();
     })
     it("share a machine that own", function (done) {
+        done();
     })
     it("can't share a machine that not own", function (done) {
+        done();
     })
     it("change a user role for a machine that own", function (done) {
+        done();
     })
     it("can't change  a user role for a machine that not own", function (done) {
+        done();
     })
     it("delete a machine that own", function (done) {
+        done();
     })
     it("can't delete a machine that not own", function (done) {
+        done();
     })
     it("garant a privilege", function (done) {
+        done();
     })
     it("revoke a privilege", function (done) {
+        done();
     })
 });
 
