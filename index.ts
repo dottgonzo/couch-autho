@@ -48,6 +48,7 @@ function testlogin(internal_couchdb, user, password, db) {
     // return true if credentials are correct for given db
 
     return new Promise<boolean>(function (resolve, reject) {
+
         rpj.get(internal_couchdb.for(user, password, db)).then(function () {
             resolve(true)
         }).catch(function (err) {
@@ -96,8 +97,9 @@ function testauth(internal_couchdb, user, password, app_id) {
 
 
     return new Promise(function (resolve, reject) {
-        getuserapp(user, password, app_id).then(function (db) {
-            testlogin(internal_couchdb, user, password, db).then(function () {
+        getuserapp(internal_couchdb, user, app_id).then(function (db) {
+
+            testlogin(internal_couchdb, user, password, db.dbname).then(function () {
                 resolve(true)
             }).catch(function (err) {
                 if (err.statusCode != 404) {
@@ -242,7 +244,7 @@ function create_slave_userapp(internal_couchdb, username, userappdb) {
 
     return new Promise<{ password: string; user: string }>(function (resolve, reject) {
         let slave = random_slave(username);
-        rpj.put(internal_couchdb.my('/_users/org.couchdb.user:' + slave.user), {
+        rpj.put(internal_couchdb.my('_users/org.couchdb.user:' + slave.user), {
             name: slave.user,
             roles: ['slave'],
             app: { db: userappdb, user: username },
@@ -261,148 +263,6 @@ function create_slave_userapp(internal_couchdb, username, userappdb) {
     })
 }
 
-function subscribeapp(internal_couchdb, app_id, username, owner) {
-
-
-    // every user must have a personal db for every application that they have access
-    // when an user subscribe an app, a db and it's slave user  will be created for him, and the user doc in _users register the new credentials generated 
-
-
-
-    return new Promise<boolean>(function (resolve, reject) {
-
-        getuserdb(internal_couchdb, username).then(function (doc) {
-
-            var newuserdb = gen_db('member', { username: username, app_id: app_id });
-
-            create_slave_userapp(internal_couchdb, username, newuserdb).then(function (slave) {
-
-                var newdb = { app_id: app_id, dbname: newuserdb, slave: { username: slave.user, password: slave.password }, dbtype: "mine", roles: ['owner'] };
-                doc.db.push(newdb);
-
-                if (owner) {
-                    doc.roles.push('app_' + app_id);
-                    var startapp = { app_id: app_id, dbname: 'app_' + app_id, dbtype: "application", roles: ['owner'] };
-                    doc.db.push(startapp);
-                }
-
-                rpj.put(internal_couchdb.my('/_users/org.couchdb.user:' + username), doc).then(function () { // push new user settings
-                    rpj.put(internal_couchdb.my('/' + newuserdb), doc).then(function () {  // create an empty db
-                        rpj.put(internal_couchdb.my('/' + newuserdb + '/_security'), { "members": { "names": [username, slave.user], "roles": [] } }).then(function () { // push security changes to app db
-                            resolve(true)
-
-                            // confirmDB.post({confirm:false}).then(function(doc){
-                            //   //  registerMail('darioyzf@gmail.com',doc.id); // TO BE ALIVE
-                            // }).catch(function(err){
-                            //   reject(err)
-                            // });
-
-                        }).catch(function (err) {
-                            if (err.statusCode != 404) {
-                                throw Error("ERROR!!!" + err)
-                            }
-
-                            reject(err)
-                        })
-                    }).catch(function (err) {
-                        if (err.statusCode != 404) {
-                            throw Error("ERROR!!!" + err)
-                        }
-
-                        reject(err)
-                    })
-                }).catch(function (err) {
-                    if (err.statusCode != 404) {
-                        throw Error("ERROR!!!" + err)
-                    }
-
-                    reject(err)
-                })
-            }).catch(function (err) {
-                if (err.statusCode != 404) {
-                    throw Error("ERROR!!!" + err)
-                }
-
-                reject(err)
-            })
-        }).catch(function (err) {
-            if (err.statusCode != 404) {
-                throw Error("ERROR!!!" + err)
-            }
-
-            reject(err)
-        })
-    })
-}
-
-function createapp(internal_couchdb, app_id) {
-
-    // create an application (imperative)
-    // return true only
-
-
-    return new Promise<boolean>(function (resolve, reject) {
-
-        rpj.put(internal_couchdb.my('app_' + app_id)).then(function () {
-            rpj.put(internal_couchdb.my('app_' + app_id + '/_design/auth'), {
-                "language": "javascript",
-                "validate_doc_update": "function(n,o,u){if(n._id&&!n._id.indexOf(\"_local/\"))return;if(!u||!u.roles||u.roles.indexOf(\"app_" + app_id + "\")==-1){throw({forbidden:'Denied.'})}}"
-            }).then(function () {
-                resolve(true)
-            }).catch(function (err) {
-                if (err.statusCode != 404) {
-                    throw Error("ERROR!!!" + err)
-                }
-
-                reject(err)
-            })
-        }).catch(function (err) {
-            if (err.statusCode != 404) {
-                throw Error("ERROR!!!" + err)
-            }
-
-            reject(err)
-        })
-
-    })
-
-}
-
-
-
-
-
-function createappforuser(internal_couchdb, app_id, username) { // create a new application
-
-
-
-
-    return new Promise<boolean>(function (resolve, reject) {
-
-
-        createapp(internal_couchdb, app_id).then(function () {
-            subscribeapp(internal_couchdb, app_id, username, true).then(function () {
-                resolve(true)
-            }).catch(function (err) {
-                if (err.statusCode != 404) {
-                    throw Error("ERROR!!!" + err)
-                }
-
-                reject(err)
-            })
-        }).catch(function (err) {
-            if (err.statusCode != 404) {
-                throw Error("ERROR!!!" + err)
-            }
-
-            reject(err)
-        })
-
-
-
-
-    })
-}
 
 
 
@@ -411,8 +271,15 @@ function createappforuser(internal_couchdb, app_id, username) { // create a new 
 
 
 
-function sharemach(internal_couchdb, app_id, user, label, friend) { // create or subscribe new application
-    var internal_couchdb = this
+
+
+
+
+
+
+
+function sharemach(internal_couchdb: couchAccess, app_id, user, label, friend) { // create or subscribe new application
+
 
     return new Promise<boolean>(function (resolve, reject) {
         getmymachine(internal_couchdb, app_id, user, label).then(function (m) {
@@ -426,13 +293,13 @@ function sharemach(internal_couchdb, app_id, user, label, friend) { // create or
                     var newdb: IcommonDB = { app_id: app_id, dbname: machinedb, slave: { username: machineuser, password: machinepassw, token: machinetoken }, label: label, dbtype: "machine", roles: ['shared'] };
                     doc.db.push(newdb)
 
-                    rpj.put(internal_couchdb.my('/_users/org.couchdb.user:' + friend), doc).then(function () {
+                    rpj.put(internal_couchdb.my('_users/org.couchdb.user:' + friend), doc).then(function () {
 
-                        rpj.get(internal_couchdb.my('/_users/org.couchdb.user:' + machineuser), doc).then(function (updateslave) {
+                        rpj.get(internal_couchdb.my('_users/org.couchdb.user:' + machineuser), doc).then(function (updateslave) {
 
                             updateslave.app.users.push(newusername);
 
-                            rpj.put(internal_couchdb.my('/_users/org.couchdb.user:' + machineuser), updateslave).then(function () {
+                            rpj.put(internal_couchdb.my('_users/org.couchdb.user:' + machineuser), updateslave).then(function () {
                                 resolve(true)
                             }).catch(function (err) {
                                 if (err.statusCode != 404) {
@@ -487,6 +354,10 @@ interface IClassConf {
 
 
 
+
+
+
+
 class couchAccess extends couchJsonConf {
 
     constructor(rootaccessdb: IClassConf) {
@@ -494,13 +365,234 @@ class couchAccess extends couchJsonConf {
 
         let that = this;
 
+        function addAdminRole() {
+            that.addAppRole(that.user, 'main').then(() => {
+                console.log("created!")
+                return true
+            }).catch((err) => {
+                console.log("errRRR " + err)
+            })
+        }
+
+
+
+
         rpj.get(that.my('app_main')).then(function () {
-            return true
+
+
+            getuserdb(that, that.user).then((u) => {
+
+                if (u.roles.indexOf('app_main') != -1) {
+                    addAdminRole()
+                } else {
+                    console.log("created!")
+                    return true
+                }
+
+            }).catch((err) => {
+
+                that.createUser(that.user, that.password, '').then(() => {
+
+
+                    addAdminRole()
+
+
+                }).catch((err) => {
+                    console.error("err " + err)
+                })
+
+            })
+
+
         }).catch(function (err) {
-            createapp(that, 'main')
+
+
+            that.createapp('main').then(() => {
+
+                getuserdb(that, that.user).then((u) => {
+
+                    if (u.roles.indexOf('app_main') != -1) {
+                        addAdminRole()
+                    } else {
+                        console.log("created!")
+                        return true
+                    }
+
+                }).catch((err) => {
+
+                    that.createUser(that.user, that.password, '').then(() => {
+
+                        addAdminRole()
+
+
+                    }).catch((err) => {
+                        console.error("err " + err)
+                    })
+
+                })
+
+
+
+            }).catch((err) => {
+
+
+                console.error("err " + err)
+            })
         })
 
 
+    }
+
+    login(o: { username: string, password: string, app_id: string }) {
+        const _this = this;
+
+        return new Promise<boolean>(function (resolve, reject) {
+
+            if (o && o.username && o.password && o.app_id) {
+                testauth(_this, o.username, o.password, o.app_id).then(() => {
+                    resolve(true)
+                }).catch((err) => {
+                    reject(err)
+                })
+
+            } else {
+                if (!o) {
+                    reject('no options provided')
+                } else if (!o.username) {
+                    reject('no username provided')
+
+                } else if (!o.password) {
+                    reject('no password provided')
+
+                } else if (!o.app_id) {
+                    reject('no app_id provided')
+
+                }
+            }
+
+        })
+    }
+
+    register(o: { username: string, password: string, email: string, app_id: string }): Promise<boolean> {
+        const _this = this;
+
+        return new Promise<boolean>(function (resolve, reject) {
+            if (o && o.username && o.password && o.email && o.app_id) {
+                _this.createUser(o.username, o.password, o.email).then(() => {
+                    _this.subscribeapp(o.app_id, o.username).then(() => {
+                        resolve(true)
+                    }).catch((err) => {
+                        reject(err)
+                    })
+                }).catch((err) => {
+                    reject(err)
+                })
+            } else {
+                if (!o) {
+                    reject('no options provided')
+                } else if (!o.username) {
+                    reject('no username provided')
+
+                } else if (!o.password) {
+                    reject('no password provided')
+
+                } else if (!o.email) {
+                    reject('no email provided')
+
+                } else if (!o.app_id) {
+                    reject('no app_id provided')
+
+                }
+            }
+
+        })
+
+    }
+
+    createappforuser(app_id, username) { // create a new application
+
+        const internal_couchdb = this;
+
+
+
+        return new Promise<boolean>(function (resolve, reject) {
+
+
+            internal_couchdb.createapp(app_id).then(function () {
+
+                internal_couchdb.subscribeapp(app_id, username, true).then(() => {
+                    resolve(true)
+                }).catch((err) => {
+                    reject(err)
+
+
+                })
+            }).catch(function (err) {
+                reject(err)
+
+
+            })
+
+
+
+
+        })
+    }
+
+
+    addAppRole(username: string, app_id: string): Promise<boolean> {
+        const _this = this;
+        return new Promise<boolean>(function (resolve, reject) {
+
+            getuserdb(_this, username).then((u) => {
+                u.roles.push('app_' + app_id)
+
+                rpj.put(_this.my('_users/org.couchdb.user:' + username), u).then(() => {
+
+                    resolve(true)
+
+                }).catch((err) => {
+                    reject(err)
+                })
+            }).catch((err) => {
+                reject(err)
+            })
+
+        })
+
+    }
+
+
+
+    createUser(username: string, password: string, email: string): Promise<IUserDB> {
+        const _this = this;
+        return new Promise<IUserDB>(function (resolve, reject) {
+
+            getuserdb(_this, username).then((u) => {
+                reject("user " + username + " just eixsts")
+
+            }).catch((err) => {
+
+                const doc = { name: username, email: email, db: [], "roles": ['user'], "type": "user", password: password };
+
+                rpj.put(_this.my('_users/org.couchdb.user:' + username), doc).then(() => {
+                    getuserdb(_this, username).then((u) => {
+
+                        resolve(u)
+
+                    }).catch((err) => {
+                        reject(err)
+                    })
+                }).catch((err) => {
+                    reject(err)
+                })
+
+
+
+
+            })
+
+        })
     }
 
     testlogin(user, password, db) {
@@ -515,15 +607,6 @@ class couchAccess extends couchJsonConf {
 
         return testapp_id(this, app_id);
     }
-
-
-
-    testauth(user, password, app_id) {
-        return testauth(this, user, password, app_id)
-
-    }
-
-
 
 
     getuserdbs(username) {
@@ -551,25 +634,145 @@ class couchAccess extends couchJsonConf {
     }
 
 
-    create_slave_userapp(username, userdb) {
+    create_slave_userapp(username: string, userdb: string) {
 
 
         return create_slave_userapp(this, username, userdb)
     }
 
-    subscribeapp(app_id, username, owner) {
+    subscribeapp(app_id: string, username: string, owner?: boolean) {
 
 
 
-        return subscribeapp(this, app_id, username, owner)
+        // every user must have a personal db for every application that they have access
+        // when an user subscribe an app, a db and it's slave user  will be created for him, and the user doc in _users register the new credentials generated 
+
+
+
+
+        const internal_couchdb = this;
+
+
+        return new Promise<boolean>(function (resolve, reject) {
+
+
+
+            function sub(doc) {
+
+
+                var newuserdb = gen_db('member', { username: username, app_id: app_id });
+
+                create_slave_userapp(internal_couchdb, username, newuserdb).then(function (slave) {
+
+                    var newdb = { app_id: app_id, dbname: newuserdb, slave: { username: slave.user, password: slave.password }, dbtype: "mine", roles: ['owner'] };
+                    doc.db.push(newdb);
+
+                    if (owner) {
+                        doc.roles.push('app_' + app_id);
+                        var startapp = { app_id: app_id, dbname: 'app_' + app_id, dbtype: "application", roles: ['owner'] };
+                        doc.db.push(startapp);
+                    }
+
+                    rpj.put(internal_couchdb.my('_users/org.couchdb.user:' + username), doc).then(function () { // push new user settings
+                        rpj.put(internal_couchdb.my(newuserdb), doc).then(function () {  // create an empty db
+                            rpj.put(internal_couchdb.my(newuserdb + '/_security'), { "members": { "names": [username, slave.user], "roles": [] } }).then(function () { // push security changes to app db
+                                resolve(true)
+
+                                // confirmDB.post({confirm:false}).then(function(doc){
+                                //   //  registerMail('darioyzf@gmail.com',doc.id); // TO BE ALIVE
+                                // }).catch(function(err){
+                                //   reject(err)
+                                // });
+
+                            }).catch(function (err) {
+                                if (err.statusCode != 404) {
+                                    throw Error("ERROR!!!" + err)
+                                }
+
+                                reject(err)
+                            })
+                        }).catch(function (err) {
+                            if (err.statusCode != 404) {
+                                throw Error("ERROR!!!" + err)
+                            }
+
+                            reject(err)
+                        })
+                    }).catch(function (err) {
+                        if (err.statusCode != 404) {
+                            throw Error("ERROR!!!" + err)
+                        }
+
+                        reject(err)
+                    })
+                }).catch(function (err) {
+                    if (err.statusCode != 404) {
+                        throw Error("ERROR!!!" + err)
+                    }
+
+                    reject(err)
+                })
+            }
+
+
+
+
+            getuserdb(internal_couchdb, username).then(function (doc) {
+
+                testapp_id(internal_couchdb, app_id).then(function () {
+
+                    sub(doc)
+
+
+                }).catch(function (err) {
+                    reject(err)
+                })
+
+            }).catch(function (err) {
+                reject(err)
+
+
+            })
+        })
+
+
     }
 
-    createapp(app_id, username) {
+    createapp(app_id) {
+        const internal_couchdb = this;
+
+        // create an application (imperative)
+        // return true only
 
 
-        return createappforuser(this, app_id, username)
+        return new Promise<boolean>(function (resolve, reject) {
 
+            rpj.put(internal_couchdb.my('app_' + app_id)).then(function () {
+                rpj.put(internal_couchdb.my('app_' + app_id + '/_design/auth'), {
+                    "language": "javascript",
+                    "validate_doc_update": "function(n,o,u){if(n._id&&!n._id.indexOf(\"_local/\"))return;if(!u||!u.roles||(u.roles.indexOf(\"app_" + app_id + "\")==-1&&u.roles.indexOf(\"_admin\")==-1)){throw({forbidden:'Denied.'})}}"
+                }).then(function () {
+                    resolve(true)
+                }).catch(function (err) {
+                    if (err.statusCode != 404) {
+                        throw Error("ERROR!!!" + err)
+                    }
+
+                    reject(err)
+                })
+            }).catch(function (err) {
+                if (err.statusCode != 404) {
+                    throw Error("ERROR!!!" + err)
+                }
+
+                reject(err)
+            })
+
+        })
     }
+
+
+
 
 
     sharemach(app_id, user, label, friend) { // create or subscribe new application
